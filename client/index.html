@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Roguelike Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Lobby */
+        #lobby {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        #lobby h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        #lobby button {
+            padding: 12px 32px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+        }
+
+        #lobby input {
+            padding: 10px;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: none;
+            text-align: center;
+            width: 200px;
+        }
+
+        #room-code-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        /* Joystick */
+        #joystick-left,
+        #joystick-right {
+            position: fixed;
+            bottom: 60px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: all;
+        }
+
+        #joystick-left {
+            left: 40px;
+        }
+
+        #joystick-right {
+            right: 40px;
+        }
+
+        .joystick-knob {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        #attack-btn {
+            position: fixed;
+            bottom: 60px;
+            right: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 80, 80, 0.4);
+            border: 2px solid rgba(255, 80, 80, 0.6);
+            border-radius: 50%;
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            pointer-events: all;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui">
+        <!-- Lobby Screen -->
+        <div id="lobby">
+            <h1>🎮 Roguelike</h1>
+            <button id="btn-create">Buat Room</button>
+            <div style="color:#aaa">— atau —</div>
+            <input id="input-code" type="text" placeholder="Masukkan kode room" maxlength="6">
+            <button id="btn-join">Join Room</button>
+            <div id="room-code-display"></div>
+            <div id="lobby-status"></div>
+        </div>
+
+        <!-- Joystick Kiri (gerak) -->
+        <div id="joystick-left" style="display:none">
+            <div class="joystick-knob" id="knob-left"></div>
+        </div>
+
+        <!-- Tombol Attack -->
+        <div id="attack-btn" style="display:none">ATTACK</div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="game.js"></script>
+</body>
+
+</html>
