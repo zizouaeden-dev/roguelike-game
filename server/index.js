@@ -23,11 +23,12 @@ function generateRoomCode() {
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  // Buat room baru
   socket.on('create_room', () => {
     const roomCode = generateRoomCode();
     rooms[roomCode] = {
-      players: {}
+      players: {},
+      started: false,
+      hostId: socket.id
     };
     socket.join(roomCode);
     rooms[roomCode].players[socket.id] = {
@@ -40,7 +41,6 @@ io.on('connection', (socket) => {
     console.log('Room created:', roomCode);
   });
 
-  // Join room
   socket.on('join_room', ({ roomCode }) => {
     const room = rooms[roomCode];
     if (!room) {
@@ -49,6 +49,10 @@ io.on('connection', (socket) => {
     }
     if (Object.keys(room.players).length >= 3) {
       socket.emit('error', { message: 'Room sudah penuh!' });
+      return;
+    }
+    if (room.started) {
+      socket.emit('error', { message: 'Game sudah dimulai!' });
       return;
     }
     socket.join(roomCode);
@@ -63,7 +67,20 @@ io.on('connection', (socket) => {
     console.log('Player joined room:', roomCode);
   });
 
-  // Update posisi player
+  // Host mulai game
+  socket.on('start_game', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+    if (room.hostId !== socket.id) return;
+    if (Object.keys(room.players).length < 2) {
+      socket.emit('error', { message: 'Minimal 2 pemain untuk mulai!' });
+      return;
+    }
+    room.started = true;
+    io.to(roomCode).emit('game_started', { players: room.players });
+    console.log('Game started in room:', roomCode);
+  });
+
   socket.on('player_move', ({ roomCode, x, y }) => {
     const room = rooms[roomCode];
     if (!room || !room.players[socket.id]) return;
@@ -75,7 +92,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Player disconnect
   socket.on('disconnecting', () => {
     for (const roomCode of socket.rooms) {
       if (rooms[roomCode]) {
