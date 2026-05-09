@@ -6,10 +6,6 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://zizouaeden-dev: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@github.com/zizouaeden-dev/roguelike-game.git"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
