@@ -15,10 +15,7 @@
         body {
             background: #000;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            font-family: Arial, sans-serif;
         }
 
         canvas {
@@ -39,59 +36,188 @@
             z-index: 1;
         }
 
-        #lobby {
+        .screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #111;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            gap: 16px;
+            gap: 14px;
             color: white;
-            font-family: Arial, sans-serif;
             pointer-events: all;
-            z-index: 2;
+            z-index: 10;
         }
 
-        #lobby h1 {
-            font-size: 2rem;
+        #screen-menu {
+            background: #111;
+        }
+
+        #screen-menu h1 {
+            font-size: 2.2rem;
             margin-bottom: 8px;
         }
 
-        #lobby button {
+        #screen-lobby {
+            background: #111;
+            display: none;
+        }
+
+        #screen-lobby h2 {
+            font-size: 1.4rem;
+            color: #aaa;
+        }
+
+        #screen-join {
+            background: #111;
+            display: none;
+        }
+
+        #screen-room {
+            background: #111;
+            display: none;
+        }
+
+        #screen-room h2 {
+            font-size: 1.3rem;
+            color: #4CAF50;
+        }
+
+        #screen-gameover {
+            background: rgba(0, 0, 0, 0.88);
+            display: none;
+        }
+
+        #screen-gameover h2 {
+            font-size: 2rem;
+            color: #e74c3c;
+        }
+
+        #gameover-stats {
+            color: #ccc;
+            font-size: 1rem;
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        input[type="text"] {
+            padding: 10px 14px;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: 1px solid #444;
+            width: 220px;
+            text-align: center;
+            background: #222;
+            color: white;
+            outline: none;
+        }
+
+        .btn {
             padding: 12px 32px;
             font-size: 1rem;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            background: #4CAF50;
             color: white;
+            font-weight: bold;
             pointer-events: all;
+            transition: opacity 0.2s;
         }
 
-        #lobby input {
-            padding: 10px;
-            font-size: 1rem;
+        .btn:hover {
+            opacity: 0.85;
+        }
+
+        .btn-green {
+            background: #4CAF50;
+        }
+
+        .btn-orange {
+            background: #e67e22;
+        }
+
+        .btn-red {
+            background: #e74c3c;
+        }
+
+        .btn-gray {
+            background: #555;
+        }
+
+        #color-picker,
+        #color-picker-join {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .color-dot {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+
+        .color-dot:hover {
+            transform: scale(1.15);
+        }
+
+        .color-dot.selected {
+            border-color: white;
+            transform: scale(1.2);
+        }
+
+        .color-dot.disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+        }
+
+        #player-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 220px;
+        }
+
+        .player-entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #222;
             border-radius: 8px;
-            border: none;
-            text-align: center;
-            width: 200px;
-            pointer-events: all;
+            padding: 8px 14px;
         }
 
-        #room-code-display {
-            font-size: 1.5rem;
+        .player-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        #room-code-big {
+            font-size: 2.5rem;
             font-weight: bold;
             color: #4CAF50;
+            letter-spacing: 6px;
         }
 
-        #btn-start {
-            display: none;
-            background: #e67e22 !important;
+        #room-status {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        #error-msg,
+        #error-msg-join {
+            color: #e74c3c;
+            font-size: 0.9rem;
+            min-height: 20px;
         }
 
         #joystick-left {
@@ -105,6 +231,7 @@
             border-radius: 50%;
             pointer-events: all;
             z-index: 3;
+            display: none;
         }
 
         .joystick-knob {
@@ -133,37 +260,68 @@
             font-weight: bold;
             pointer-events: all;
             cursor: pointer;
-            display: flex;
+            z-index: 3;
+            display: none;
             justify-content: center;
             align-items: center;
-            z-index: 3;
         }
     </style>
 </head>
 
 <body>
-
     <canvas id="gameCanvas"></canvas>
-
     <div id="ui">
-        <div id="lobby">
+<div class="screen" id="screen-menu">
             <h1>🎮 Roguelike</h1>
-            <button id="btn-create">Buat Room</button>
+            <button class="btn btn-green" id="btn-goto-create">Buat Room</button>
             <div style="color:#aaa">— atau —</div>
-            <input id="input-code" type="text" placeholder="Masukkan kode room" maxlength="6">
-            <button id="btn-join">Join Room</button>
-            <div id="room-code-display"></div>
-            <div id="lobby-status"></div>
-            <button id="btn-start">Mulai Game</button>
+            <button class="btn btn-gray" id="btn-goto-join">Join Room</button>
+            </div>
+            
+            <div class="screen" id="screen-lobby">
+                <h2>Buat Room</h2>
+                <input type="text" id="input-name-create" placeholder="Nama kamu" maxlength="12">
+                <div style="color:#aaa; font-size:0.9rem;">Pilih warna:</div>
+                <div id="color-picker"></div>
+                <div id="error-msg"></div>
+                <button class="btn btn-green" id="btn-create">Buat Room</button>
+                <button class="btn btn-gray" id="btn-back-create" style="font-size:0.85rem; padding:8px 20px;">←
+                    Kembali</button>
+            </div>
+            
+            <div class="screen" id="screen-join">
+                <h2 style="color:#aaa;">Join Room</h2>
+                <input type="text" id="input-name-join" placeholder="Nama kamu" maxlength="12">
+                <input type="text" id="input-code" placeholder="Kode room (6 huruf)" maxlength="6"
+                    style="text-transform:uppercase;">
+                <div style="color:#aaa; font-size:0.9rem;">Pilih warna:</div>
+                <div id="color-picker-join"></div>
+                <div id="error-msg-join"></div>
+                <button class="btn btn-green" id="btn-join">Join Room</button>
+                <button class="btn btn-gray" id="btn-back-join" style="font-size:0.85rem; padding:8px 20px;">←
+                    Kembali</button>
+            </div>
+            
+            <div class="screen" id="screen-room">
+                <h2>Room Code:</h2>
+                <div id="room-code-big"></div>
+                <div id="room-status">Menunggu pemain lain...</div>
+                <div id="player-list"></div>
+                <button class="btn btn-orange" id="btn-start" style="display:none;">Mulai Game</button>
+            </div>
+            
+            <div class="screen" id="screen-gameover">
+                <h2>💀 GAME OVER</h2>
+                <div id="gameover-stats"></div>
+                <button class="btn btn-red" id="btn-exit">Keluar</button>
         </div>
 
-        <div id="joystick-left" style="display:none">
+        <div id="joystick-left">
             <div class="joystick-knob" id="knob-left"></div>
         </div>
+        <div id="attack-btn">ATTACK</div>
 
-        <div id="attack-btn" style="display:none">ATTACK</div>
     </div>
-
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="game.js"></script>
 </body>
