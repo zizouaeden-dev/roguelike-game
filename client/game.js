@@ -1,4 +1,4 @@
-const SERVER_URL = 'http://localhost:3001';
+const SERVER_URL = 'https://roguelike-game-production.up.railway.app';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
