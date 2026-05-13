@@ -96,6 +96,11 @@
             color: #e74c3c;
         }
 
+        #screen-leaderboard {
+            background: #111;
+            display: none;
+        }
+
         #gameover-stats {
             color: #ccc;
             font-size: 1rem;
@@ -145,6 +150,10 @@
 
         .btn-gray {
             background: #555;
+        }
+
+        .btn-yellow {
+            background: #f39c12;
         }
 
         #color-picker,
@@ -220,6 +229,47 @@
             min-height: 20px;
         }
 
+        /* Leaderboard */
+        #leaderboard-list {
+            width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .lb-entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #222;
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: white;
+            font-size: 0.95rem;
+        }
+
+        .lb-rank {
+            font-weight: bold;
+            color: #f39c12;
+            min-width: 30px;
+        }
+
+        .lb-name {
+            flex: 1;
+        }
+
+        .lb-kills {
+            color: #e74c3c;
+            min-width: 60px;
+        }
+
+        .lb-time {
+            color: #3498db;
+            min-width: 70px;
+        }
+
         #joystick-left {
             position: fixed;
             bottom: 60px;
@@ -271,51 +321,69 @@
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="ui">
-<div class="screen" id="screen-menu">
+<!-- MAIN MENU -->
+        <div class="screen" id="screen-menu">
             <h1>🎮 Roguelike</h1>
             <button class="btn btn-green" id="btn-goto-create">Buat Room</button>
             <div style="color:#aaa">— atau —</div>
             <button class="btn btn-gray" id="btn-goto-join">Join Room</button>
-            </div>
-            
-            <div class="screen" id="screen-lobby">
-                <h2>Buat Room</h2>
-                <input type="text" id="input-name-create" placeholder="Nama kamu" maxlength="12">
-                <div style="color:#aaa; font-size:0.9rem;">Pilih warna:</div>
-                <div id="color-picker"></div>
-                <div id="error-msg"></div>
-                <button class="btn btn-green" id="btn-create">Buat Room</button>
-                <button class="btn btn-gray" id="btn-back-create" style="font-size:0.85rem; padding:8px 20px;">←
-                    Kembali</button>
-            </div>
-            
-            <div class="screen" id="screen-join">
-                <h2 style="color:#aaa;">Join Room</h2>
-                <input type="text" id="input-name-join" placeholder="Nama kamu" maxlength="12">
-                <input type="text" id="input-code" placeholder="Kode room (6 huruf)" maxlength="6"
-                    style="text-transform:uppercase;">
-                <div style="color:#aaa; font-size:0.9rem;">Pilih warna:</div>
-                <div id="color-picker-join"></div>
-                <div id="error-msg-join"></div>
-                <button class="btn btn-green" id="btn-join">Join Room</button>
-                <button class="btn btn-gray" id="btn-back-join" style="font-size:0.85rem; padding:8px 20px;">←
-                    Kembali</button>
-            </div>
-            
-            <div class="screen" id="screen-room">
-                <h2>Room Code:</h2>
-                <div id="room-code-big"></div>
-                <div id="room-status">Menunggu pemain lain...</div>
-                <div id="player-list"></div>
-                <button class="btn btn-orange" id="btn-start" style="display:none;">Mulai Game</button>
-            </div>
-            
-            <div class="screen" id="screen-gameover">
-                <h2>💀 GAME OVER</h2>
-                <div id="gameover-stats"></div>
-                <button class="btn btn-red" id="btn-exit">Keluar</button>
+            <div style="color:#aaa">— atau —</div>
+            <button class="btn btn-yellow" id="btn-goto-leaderboard">🏆 Leaderboard</button>
         </div>
 
+        <!-- BUAT ROOM -->
+        <div class="screen" id="screen-lobby">
+            <h2>Buat Room</h2>
+            <input type="text" id="input-name-create" placeholder="Nama kamu" maxlength="12">
+            <div style="color:#aaa; font-size:0.9rem;">Pilih warna:</div>
+            <div id="color-picker"></div>
+            <div id="error-msg"></div>
+            <button class="btn btn-green" id="btn-create">Buat Room</button>
+            <button class="btn btn-gray" id="btn-back-create" style="font-size:0.85rem; padding:8px 20px;">←
+                Kembali</button>
+        </div>
+
+        <!-- JOIN ROOM -->
+        <div class="screen" id="screen-join">
+            <h2 style="color:#aaa;">Join Room</h2>
+            <input type="text" id="input-name-join" placeholder="Nama kamu" maxlength="12">
+            <input type="text" id="input-code" placeholder="Kode room (6 huruf)" maxlength="6"
+                style="text-transform:uppercase;">
+            <div style="color:#aaa; font-size:0.9rem;">Pilih warna:</div>
+            <div id="color-picker-join"></div>
+            <div id="error-msg-join"></div>
+            <button class="btn btn-green" id="btn-join">Join Room</button>
+            <button class="btn btn-gray" id="btn-back-join" style="font-size:0.85rem; padding:8px 20px;">←
+                Kembali</button>
+        </div>
+
+        <!-- WAITING ROOM -->
+        <div class="screen" id="screen-room">
+            <h2>Room Code:</h2>
+            <div id="room-code-big"></div>
+            <div id="room-status">Menunggu pemain lain...</div>
+            <div id="player-list"></div>
+            <button class="btn btn-orange" id="btn-start" style="display:none;">Mulai Game</button>
+        </div>
+
+        <!-- GAME OVER -->
+        <div class="screen" id="screen-gameover">
+            <h2>💀 GAME OVER</h2>
+            <div id="gameover-stats"></div>
+            <button class="btn btn-red" id="btn-exit">Keluar</button>
+        </div>
+
+        <!-- LEADERBOARD -->
+        <div class="screen" id="screen-leaderboard">
+            <h2 style="color:#f39c12; font-size:1.8rem;">🏆 Leaderboard</h2>
+            <div id="leaderboard-list">
+                <div style="color:#aaa">Memuat...</div>
+            </div>
+            <button class="btn btn-gray" id="btn-back-leaderboard" style="font-size:0.85rem; padding:8px 20px;">←
+                Kembali</button>
+        </div>
+        
+        <!-- IN-GAME CONTROLS -->
         <div id="joystick-left">
             <div class="joystick-knob" id="knob-left"></div>
         </div>
@@ -323,6 +391,8 @@
 
     </div>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="game.js"></script>
 </body>
 

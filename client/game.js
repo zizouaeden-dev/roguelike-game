@@ -1,5 +1,18 @@
 const SERVER_URL = 'https://roguelike-game-production.up.railway.app';
 
+// Firebase setup
+const firebaseConfig = {
+  apiKey: "AIzaSyC4FaA3fCPhNhdmHDUzjCeCUQyxp9umAng",
+  authDomain: "roguelike-game-583fd.firebaseapp.com",
+  databaseURL: "https://roguelike-game-583fd-default-rtdb.firebaseio.com",
+  projectId: "roguelike-game-583fd",
+  storageBucket: "roguelike-game-583fd.firebasestorage.app",
+  messagingSenderId: "193448038177",
+  appId: "1:193448038177:web:f7d37ce1e9f0067c75b860"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
@@ -69,7 +82,6 @@ function buildColorPicker(containerId, disabledColors, onSelect) {
     container.appendChild(dot);
   });
 
-  // Auto-select first available
   if (firstSelectable) {
     firstSelectable.dot.classList.add('selected');
     onSelect(firstSelectable.color);
@@ -85,7 +97,7 @@ refreshColorPickers([]);
 
 // ==================== SCREEN NAVIGATION ====================
 function showScreen(id) {
-  ['screen-menu','screen-lobby','screen-join','screen-room','screen-gameover'].forEach(s => {
+  ['screen-menu','screen-lobby','screen-join','screen-room','screen-gameover','screen-leaderboard'].forEach(s => {
     const el = document.getElementById(s);
     if (el) el.style.display = 'none';
   });
@@ -97,6 +109,12 @@ document.getElementById('btn-goto-create').addEventListener('click', () => showS
 document.getElementById('btn-goto-join').addEventListener('click', () => showScreen('screen-join'));
 document.getElementById('btn-back-create').addEventListener('click', () => showScreen('screen-menu'));
 document.getElementById('btn-back-join').addEventListener('click', () => showScreen('screen-menu'));
+document.getElementById('btn-goto-leaderboard').addEventListener('click', () => {
+  loadLeaderboard();
+  showScreen('screen-leaderboard');
+});
+
+document.getElementById('btn-back-leaderboard').addEventListener('click', () => showScreen('screen-menu'));
 
 // ==================== CREATE ROOM ====================
 document.getElementById('btn-create').addEventListener('click', () => {
@@ -178,13 +196,19 @@ socket.on('enemy_spawned', ({ enemy }) => {
   if (!enemies.find(e => e.id === enemy.id)) enemies.push(enemy);
 });
 
+socket.on('enemy_killed', ({ enemyId, killerId }) => {
+  const idx = enemies.findIndex(e => e.id === enemyId);
+  if (idx !== -1) enemies.splice(idx, 1);
+  if (killerId === window.myId) myKills++;
+});
+
 socket.on('bullet_fired', ({ bullet, shooterId }) => {
   if (shooterId !== window.myId) {
     bullets.push({ ...bullet, life: 80 });
   }
 });
 
-socket.on('player_dead', ({ playerId, stats }) => {
+socket.on('player_dead', ({ playerId }) => {
   if (playerId === window.myId) {
     isDead = true;
     const duration = Math.floor((Date.now() - gameStartTime) / 1000);
@@ -192,6 +216,7 @@ socket.on('player_dead', ({ playerId, stats }) => {
     const secs = duration % 60;
     document.getElementById('gameover-stats').innerHTML =
       `⏱ Bertahan: ${mins}m ${secs}s<br>💀 Musuh dibunuh: ${myKills}`;
+    saveToLeaderboard(players[window.myId]?.name || 'Player', myKills, duration);
     joystickLeft.style.display = 'none';
     attackBtn.style.display = 'none';
     screenGameover.style.display = 'flex';
@@ -213,6 +238,39 @@ btnStart.addEventListener('click', () => {
 
 document.getElementById('btn-exit').addEventListener('click', () => location.reload());
 
+// ==================== LEADERBOARD ====================
+function saveToLeaderboard(name, kills, duration) {
+  const ref = db.ref('leaderboard');
+  ref.push({
+    name: name,
+    kills: kills,
+    duration: duration,
+    timestamp: Date.now()
+  });
+}
+
+function loadLeaderboard() {
+  const ref = db.ref('leaderboard');
+  ref.orderByChild('kills').limitToLast(10).once('value', (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      document.getElementById('leaderboard-list').innerHTML = '<div style="color:#aaa">Belum ada data</div>';
+      return;
+    }
+    const entries = Object.values(data).sort((a, b) => b.kills - a.kills || b.duration - a.duration);
+    document.getElementById('leaderboard-list').innerHTML = entries.map((e, i) => {
+      const mins = Math.floor(e.duration / 60);
+      const secs = e.duration % 60;
+      return `<div class="lb-entry">
+        <span class="lb-rank">#${i + 1}</span>
+        <span class="lb-name">${e.name}</span>
+        <span class="lb-kills">💀 ${e.kills}</span>
+        <span class="lb-time">⏱ ${mins}m ${secs}s</span>
+      </div>`;
+    }).join('');
+  });
+}
+
 // ==================== PLAYER LIST UI ====================
 function updatePlayerList() {
   playerListEl.innerHTML = '';
@@ -231,7 +289,6 @@ function startGame() {
   if (gameStarted) return;
   gameStarted = true;
   gameStartTime = Date.now();
-  // Hide all lobby screens
   ['screen-menu','screen-lobby','screen-join','screen-room'].forEach(s => {
     const el = document.getElementById(s);
     if (el) el.style.display = 'none';
@@ -245,11 +302,13 @@ function startGame() {
 // ==================== JOYSTICK ====================
 let joystickActive = false;
 let joystickOrigin = { x: 0, y: 0 };
+let joystickTouchId = null;
 
 joystickLeft.addEventListener('touchstart', (e) => {
   e.preventDefault();
+  const touch = e.changedTouches[0];
+  joystickTouchId = touch.identifier;
   joystickActive = true;
-  const touch = e.touches[0];
   const rect = joystickLeft.getBoundingClientRect();
   joystickOrigin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 });
@@ -257,7 +316,8 @@ joystickLeft.addEventListener('touchstart', (e) => {
 joystickLeft.addEventListener('touchmove', (e) => {
   e.preventDefault();
   if (!joystickActive) return;
-  const touch = e.touches[0];
+  const touch = [...e.changedTouches].find(t => t.identifier === joystickTouchId);
+  if (!touch) return;
   let dx = touch.clientX - joystickOrigin.x;
   let dy = touch.clientY - joystickOrigin.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -268,8 +328,11 @@ joystickLeft.addEventListener('touchmove', (e) => {
   moveInput.y = dy / maxDist;
 });
 
-joystickLeft.addEventListener('touchend', () => {
+joystickLeft.addEventListener('touchend', (e) => {
+  const touch = [...e.changedTouches].find(t => t.identifier === joystickTouchId);
+  if (!touch) return;
   joystickActive = false;
+  joystickTouchId = null;
   knobLeft.style.transform = 'translate(-50%, -50%)';
   moveInput = { x: 0, y: 0 };
 });
@@ -341,10 +404,10 @@ function update() {
     socket.emit('player_move', { roomCode: window.roomCode, x: me.x, y: me.y });
   }
 
-  camera.x = me.x - canvas.width / 2;
-  camera.y = me.y - canvas.height / 2;
+  const scale = Math.min(canvas.width, canvas.height) / 600;
+  camera.x = me.x - (canvas.width / 2) / scale;
+  camera.y = me.y - (canvas.height / 2) / scale;
 
-  // Update bullets
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx;
@@ -356,7 +419,9 @@ function update() {
       const dx = b.x - e.x;
       const dy = b.y - e.y;
       if (Math.sqrt(dx * dx + dy * dy) < 20) {
-        socket.emit('bullet_hit', { roomCode: window.roomCode, enemyId: e.id });
+        if (b.ownerId === window.myId) {
+          socket.emit('bullet_hit', { roomCode: window.roomCode, enemyId: e.id });
+        }
         bullets.splice(i, 1);
         break;
       }
@@ -367,17 +432,25 @@ function update() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  const scale = Math.min(canvas.width, canvas.height) / 600;
+  ctx.save();
+  ctx.scale(scale, scale);
+
   // Grid
   ctx.strokeStyle = '#1a1a2e';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1 / scale;
   const gridSize = 80;
   const startX = -((camera.x % gridSize) + gridSize) % gridSize;
   const startY = -((camera.y % gridSize) + gridSize) % gridSize;
-  for (let x = startX; x < canvas.width; x += gridSize) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  const cols = Math.ceil(canvas.width / scale / gridSize) + 1;
+  const rows = Math.ceil(canvas.height / scale / gridSize) + 1;
+  for (let i = 0; i <= cols; i++) {
+    const x = startX + i * gridSize;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height / scale); ctx.stroke();
   }
-  for (let y = startY; y < canvas.height; y += gridSize) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  for (let i = 0; i <= rows; i++) {
+    const y = startY + i * gridSize;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width / scale, y); ctx.stroke();
   }
 
   // Enemies
@@ -409,20 +482,20 @@ function draw() {
     ctx.fillStyle = p.color || '#3498db';
     ctx.beginPath(); ctx.arc(sx, sy, 20, 0, Math.PI * 2); ctx.fill();
 
-    // HP bar
     ctx.fillStyle = '#333';
     ctx.fillRect(sx - 25, sy - 35, 50, 6);
     ctx.fillStyle = p.hp > 50 ? '#2ecc71' : p.hp > 25 ? '#f39c12' : '#e74c3c';
     ctx.fillRect(sx - 25, sy - 35, (p.hp / 100) * 50, 6);
 
-    // Name
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 11px Arial';
+    ctx.font = `bold ${11 / scale * 1.2}px Arial`;
     ctx.textAlign = 'center';
     ctx.fillText((p.name || 'Player') + (isMe ? ' ★' : ''), sx, sy - 40);
   }
 
-  // Kills HUD
+  ctx.restore();
+
+  // Kills HUD (di luar scale supaya ukurannya konsisten)
   if (gameStarted) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(10, 10, 160, 32);
