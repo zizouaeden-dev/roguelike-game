@@ -270,6 +270,69 @@
             min-width: 70px;
         }
 
+        /* Card Upgrade */
+        #card-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 20;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            pointer-events: all;
+        }
+
+        .upgrade-card {
+            background: #1a1a2e;
+            border: 2px solid #444;
+            border-radius: 12px;
+            padding: 20px 24px;
+            width: 160px;
+            text-align: center;
+            cursor: pointer;
+            color: white;
+            transition: border-color 0.2s, transform 0.2s;
+            pointer-events: all;
+        }
+
+        .upgrade-card:hover {
+            border-color: #f39c12;
+            transform: scale(1.05);
+        }
+
+        .upgrade-card:active {
+            transform: scale(0.97);
+        }
+
+        .upgrade-card .card-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .upgrade-card .card-title {
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 6px;
+        }
+
+        .upgrade-card .card-desc {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+
+        #card-container {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Joystick & Attack */
         #joystick-left {
             position: fixed;
             bottom: 60px;
@@ -321,7 +384,8 @@
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="ui">
-<!-- MAIN MENU -->
+
+        <!-- MAIN MENU -->
         <div class="screen" id="screen-menu">
             <h1>🎮 Roguelike</h1>
             <button class="btn btn-green" id="btn-goto-create">Buat Room</button>
@@ -382,7 +446,14 @@
             <button class="btn btn-gray" id="btn-back-leaderboard" style="font-size:0.85rem; padding:8px 20px;">←
                 Kembali</button>
         </div>
-        
+
+        <!-- CARD UPGRADE -->
+        <div id="card-screen">
+            <h2 style="color:#f39c12; font-size:1.6rem;">⚡ Pilih Upgrade!</h2>
+            <div id="card-timer" style="color:#aaa; font-size:1rem;">15 detik</div>
+            <div id="card-container"></div>
+        </div>
+
         <!-- IN-GAME CONTROLS -->
         <div id="joystick-left">
             <div class="joystick-knob" id="knob-left"></div>

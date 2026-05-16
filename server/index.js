@@ -13,37 +13,169 @@ const io = new Server(server, {
 
 const rooms = {};
 const AVAILABLE_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+const MAX_WAVE = 10;
+
+const CARD_POOL = ['damage', 'fire_rate', 'double_shot'];
 
 function generateRoomCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-function startEnemyLoop(roomCode) {
-  const spawnEnemy = () => {
-    const r = rooms[roomCode];
-    if (!r || !r.started) return;
-    const playerIds = Object.keys(r.players).filter(pid => !r.players[pid].dead);
-    if (playerIds.length === 0) return;
+function getRandomCards() {
+  const shuffled = [...CARD_POOL].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3);
+}
 
+function getWaveConfig(wave) {
+  const isBossWave = wave === MAX_WAVE;
+  const enemyCount = isBossWave ? 6 + wave * 4 : 6 + (wave - 1) * 4;
+  const enemyHp = Math.floor(4 + (wave - 1) / 2);
+  const enemySpeed = 3;
+  return { enemyCount, enemyHp, enemySpeed, isBossWave };
+}
+
+function spawnWaveEnemies(roomCode) {
+  const r = rooms[roomCode];
+  if (!r) return;
+
+  const { enemyCount, enemyHp, enemySpeed, isBossWave } = getWaveConfig(r.wave);
+  const playerIds = Object.keys(r.players).filter(pid => !r.players[pid].dead);
+  if (playerIds.length === 0) return;
+
+  r.enemiesLeftInWave = enemyCount;
+  r.enemiesSpawnedInWave = 0;
+
+  if (isBossWave) {
     const targetId = playerIds[Math.floor(Math.random() * playerIds.length)];
     const target = r.players[targetId];
     const angle = Math.random() * Math.PI * 2;
+    const boss = {
+      id: 'boss_' + Date.now(),
+      x: target.x + Math.cos(angle) * 700,
+      y: target.y + Math.sin(angle) * 700,
+      hp: enemyHp * 10,
+      maxHp: enemyHp * 10,
+      speed: enemySpeed * 0.7,
+      isBoss: true,
+      radius: 40
+    };
+    r.enemies.push(boss);
+    r.enemiesSpawnedInWave++;
+  }
+
+  const spawnNext = () => {
+    const r = rooms[roomCode];
+    if (!r || !r.started) return;
+    if (r.enemiesSpawnedInWave >= enemyCount) return;
+
+    const alivePlayers = Object.keys(r.players).filter(pid => !r.players[pid].dead);
+    if (alivePlayers.length === 0) return;
+
+    const targetId = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+    const target = r.players[targetId];
+    const angle = Math.random() * Math.PI * 2;
+    const spawnDist = 600 + Math.random() * 200;
 
     const enemy = {
       id: Date.now() + Math.random(),
-      x: target.x + Math.cos(angle) * 600,
-      y: target.y + Math.sin(angle) * 600,
-      hp: 3,
-      speed: 3.0
+      x: target.x + Math.cos(angle) * spawnDist,
+      y: target.y + Math.sin(angle) * spawnDist,
+      hp: enemyHp,
+      maxHp: enemyHp,
+      speed: enemySpeed,
+      isBoss: false,
+      radius: 18
     };
 
     r.enemies.push(enemy);
+    r.enemiesSpawnedInWave++;
     io.to(roomCode).emit('enemy_spawned', { enemy });
-    r.spawnTimeout = setTimeout(spawnEnemy, 2000);
+
+    if (r.enemiesSpawnedInWave < enemyCount) {
+      const spawnInterval = Math.max(400, 1500 - r.wave * 100);
+      r.spawnTimeout = setTimeout(spawnNext, spawnInterval);
+    }
   };
 
-  rooms[roomCode].spawnTimeout = setTimeout(spawnEnemy, 1000);
+  io.to(roomCode).emit('wave_start', { wave: r.wave, enemyCount, isBossWave });
+  setTimeout(spawnNext, 1000);
+}
 
+function startCardPhase(roomCode) {
+  const r = rooms[roomCode];
+  if (!r) return;
+
+  // Generate 3 card acak untuk tiap player
+  r.cardPhase = true;
+  r.cardChoices = {};
+  r.pendingCards = {};
+
+  const playerIds = Object.keys(r.players).filter(pid => !r.players[pid].dead);
+  playerIds.forEach(pid => {
+    r.pendingCards[pid] = false; // belum milih
+    const cards = getRandomCards();
+    r.cardChoices[pid] = cards;
+    io.to(pid).emit('show_cards', { cards, timeLeft: 15 });
+  });
+
+  // Timer 15 detik
+  r.cardTimer = setTimeout(() => {
+    // Auto pilih random buat yang belum milih
+    playerIds.forEach(pid => {
+      if (!r.pendingCards[pid]) {
+        const cards = r.cardChoices[pid];
+        const randomCard = cards[Math.floor(Math.random() * cards.length)];
+        applyUpgrade(roomCode, pid, randomCard);
+      }
+    });
+    endCardPhase(roomCode);
+  }, 15000);
+}
+
+function applyUpgrade(roomCode, playerId, cardType) {
+  const r = rooms[roomCode];
+  if (!r || !r.players[playerId]) return;
+  const p = r.players[playerId];
+
+  if (!p.upgrades) p.upgrades = { damage: 1, fireRate: 500, shotCount: 1 };
+
+  if (cardType === 'damage') {
+    p.upgrades.damage = parseFloat((p.upgrades.damage * 1.8).toFixed(2));
+  } else if (cardType === 'fire_rate') {
+    p.upgrades.fireRate = Math.max(100, Math.floor(p.upgrades.fireRate / 2));
+  } else if (cardType === 'double_shot') {
+    p.upgrades.shotCount = (p.upgrades.shotCount || 1) + 1;
+  }
+
+  // Kirim upgrade ke player yang bersangkutan
+  io.to(playerId).emit('upgrade_applied', { upgrades: p.upgrades });
+}
+
+function endCardPhase(roomCode) {
+  const r = rooms[roomCode];
+  if (!r) return;
+  r.cardPhase = false;
+  clearTimeout(r.cardTimer);
+  io.to(roomCode).emit('hide_cards');
+
+  if (r.wave >= MAX_WAVE) {
+    io.to(roomCode).emit('game_won', { message: 'Semua wave selesai! Kalian menang!' });
+    return;
+  }
+  r.wave++;
+  setTimeout(() => spawnWaveEnemies(roomCode), 2000);
+}
+
+function checkWaveComplete(roomCode) {
+  const r = rooms[roomCode];
+  if (!r || !r.started || r.cardPhase) return;
+  if (r.enemies.length === 0 && r.enemiesSpawnedInWave >= r.enemiesLeftInWave) {
+    io.to(roomCode).emit('wave_complete', { wave: r.wave });
+    setTimeout(() => startCardPhase(roomCode), 2000);
+  }
+}
+
+function startGameLoop(roomCode) {
   rooms[roomCode].gameInterval = setInterval(() => {
     const r = rooms[roomCode];
     if (!r || !r.started) return;
@@ -69,12 +201,11 @@ function startEnemyLoop(roomCode) {
         e.x += (dx / dist) * e.speed;
         e.y += (dy / dist) * e.speed;
 
-        if (dist < 25) {
-          nearestPlayer.p.hp = Math.max(0, nearestPlayer.p.hp - 0.5);
-          io.to(roomCode).emit('hp_update', {
-            playerId: nearestPlayer.pid,
-            hp: nearestPlayer.p.hp
-          });
+        const hitRadius = e.isBoss ? 45 : 25;
+        if (dist < hitRadius) {
+          const dmg = e.isBoss ? 3 : 1;
+          nearestPlayer.p.hp = Math.max(0, nearestPlayer.p.hp - dmg);
+          io.to(roomCode).emit('hp_update', { playerId: nearestPlayer.pid, hp: nearestPlayer.p.hp });
           if (nearestPlayer.p.hp <= 0 && !nearestPlayer.p.dead) {
             nearestPlayer.p.dead = true;
             io.to(roomCode).emit('player_dead', { playerId: nearestPlayer.pid });
@@ -93,29 +224,20 @@ io.on('connection', (socket) => {
   socket.on('create_room', ({ name, color }) => {
     const roomCode = generateRoomCode();
     rooms[roomCode] = {
-      players: {},
-      enemies: [],
-      started: false,
-      hostId: socket.id,
-      startTime: null,
-      usedColors: [color]
+      players: {}, enemies: [], started: false,
+      hostId: socket.id, startTime: null,
+      usedColors: [color], wave: 1,
+      enemiesLeftInWave: 0, enemiesSpawnedInWave: 0,
+      cardPhase: false, cardChoices: {}, pendingCards: {}
     };
     socket.join(roomCode);
     rooms[roomCode].players[socket.id] = {
-      id: socket.id,
-      name: name || 'Player',
-      color: color,
-      x: 400, y: 300,
-      hp: 100, kills: 0, dead: false
+      id: socket.id, name: name || 'Player', color,
+      x: 400, y: 300, hp: 100, kills: 0, dead: false,
+      upgrades: { damage: 1, fireRate: 500, shotCount: 1 }
     };
     const availableColors = AVAILABLE_COLORS.filter(c => !rooms[roomCode].usedColors.includes(c));
-    socket.emit('room_created', {
-      roomCode,
-      playerId: socket.id,
-      players: rooms[roomCode].players,
-      availableColors
-    });
-    console.log('Room created:', roomCode, 'by', name, color);
+    socket.emit('room_created', { roomCode, playerId: socket.id, players: rooms[roomCode].players, availableColors });
   });
 
   socket.on('join_room', ({ roomCode, name, color }) => {
@@ -127,18 +249,15 @@ io.on('connection', (socket) => {
 
     socket.join(roomCode);
     room.players[socket.id] = {
-      id: socket.id,
-      name: name || 'Player',
-      color: color,
-      x: 400, y: 300,
-      hp: 100, kills: 0, dead: false
+      id: socket.id, name: name || 'Player', color,
+      x: 400, y: 300, hp: 100, kills: 0, dead: false,
+      upgrades: { damage: 1, fireRate: 500, shotCount: 1 }
     };
     room.usedColors.push(color);
 
     const availableColors = AVAILABLE_COLORS.filter(c => !room.usedColors.includes(c));
     socket.emit('join_success', { roomCode, playerId: socket.id, players: room.players, availableColors });
     socket.to(roomCode).emit('player_joined', { players: room.players, availableColors });
-    console.log('Player joined:', name, color, 'room:', roomCode);
   });
 
   socket.on('start_game', ({ roomCode }) => {
@@ -151,9 +270,10 @@ io.on('connection', (socket) => {
     }
     room.started = true;
     room.startTime = Date.now();
+    room.wave = 1;
     io.to(roomCode).emit('game_started', { players: room.players });
-    startEnemyLoop(roomCode);
-    console.log('Game started in room:', roomCode);
+    startGameLoop(roomCode);
+    spawnWaveEnemies(roomCode);
   });
 
   socket.on('player_move', ({ roomCode, x, y }) => {
@@ -165,20 +285,37 @@ io.on('connection', (socket) => {
   });
 
   socket.on('bullet_fired', ({ roomCode, bullet }) => {
-  socket.to(roomCode).emit('bullet_fired', { bullet, shooterId: socket.id });
+    socket.to(roomCode).emit('bullet_fired', { bullet, shooterId: socket.id });
   });
-  
-  socket.on('bullet_hit', ({ roomCode, enemyId }) => {
+
+  socket.on('bullet_hit', ({ roomCode, enemyId, damage }) => {
     const room = rooms[roomCode];
     if (!room) return;
     const idx = room.enemies.findIndex(e => e.id === enemyId);
     if (idx === -1) return;
-    room.enemies[idx].hp--;
+    const dmg = damage || 1;
+    room.enemies[idx].hp -= dmg;
     if (room.enemies[idx].hp <= 0) {
       room.enemies.splice(idx, 1);
       if (room.players[socket.id]) room.players[socket.id].kills++;
       io.to(roomCode).emit('enemy_killed', { enemyId, killerId: socket.id });
+      checkWaveComplete(roomCode);
+    } else {
+      io.to(roomCode).emit('enemy_hp_update', { enemyId, hp: room.enemies[idx].hp });
     }
+  });
+
+  socket.on('card_selected', ({ roomCode, cardType }) => {
+    const room = rooms[roomCode];
+    if (!room || !room.cardPhase) return;
+    if (room.pendingCards[socket.id]) return; // udah milih
+    room.pendingCards[socket.id] = true;
+    applyUpgrade(roomCode, socket.id, cardType);
+
+    // Cek kalau semua udah milih
+    const playerIds = Object.keys(room.players).filter(pid => !room.players[pid].dead);
+    const allChosen = playerIds.every(pid => room.pendingCards[pid]);
+    if (allChosen) endCardPhase(roomCode);
   });
 
   socket.on('disconnecting', () => {
@@ -189,8 +326,8 @@ io.on('connection', (socket) => {
         if (Object.keys(rooms[roomCode].players).length === 0) {
           clearInterval(rooms[roomCode].gameInterval);
           clearTimeout(rooms[roomCode].spawnTimeout);
+          clearTimeout(rooms[roomCode].cardTimer);
           delete rooms[roomCode];
-          console.log('Room deleted:', roomCode);
         }
       }
     }
