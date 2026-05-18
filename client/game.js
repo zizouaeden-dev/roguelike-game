@@ -1,4 +1,4 @@
-const SERVER_URL = 'https://roguelike-game-production.up.railway.app';
+const SERVER_URL = 'http://localhost:3001';
 
 // Firebase setup
 const firebaseConfig = {
@@ -12,6 +12,54 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
+// ==================== AUDIO ====================
+const sounds = {
+  shoot: new Audio('sounds/shoot.wav'),
+  enemyDeath: new Audio('sounds/enemy_death.wav'),
+  waveStart: new Audio('sounds/wave_start.wav'),
+  powerUp: new Audio('sounds/power_up.wav'),
+  playerHurt: new Audio('sounds/player_hurt.wav'),
+  menuBgm: new Audio('sounds/menu_bgm.mp3'),
+  mainBgm: new Audio('sounds/main_bgm.mp3'),
+};
+
+sounds.shoot.volume = 0.4;
+sounds.enemyDeath.volume = 0.6;
+sounds.waveStart.volume = 0.8;
+sounds.powerUp.volume = 0.7;
+sounds.playerHurt.volume = 0.8;
+sounds.menuBgm.volume = 0.3;
+sounds.mainBgm.volume = 0.3;
+sounds.menuBgm.loop = true;
+sounds.mainBgm.loop = true;
+
+let bgmStarted = false;
+
+function playSound(name) {
+  const s = sounds[name];
+  if (!s) return;
+  s.currentTime = 0;
+  s.play().catch(() => {});
+}
+
+function playBgm(name) {
+  Object.values(sounds).forEach(s => {
+    if (s.loop) { s.pause(); s.currentTime = 0; }
+  });
+  sounds[name].play().catch(() => {});
+}
+
+function tryStartMenuBgm() {
+  if (bgmStarted) return;
+  bgmStarted = true;
+  playBgm('menuBgm');
+}
+
+// Trigger BGM pas interaksi pertama apapun
+document.addEventListener('click', tryStartMenuBgm, { once: true });
+document.addEventListener('touchstart', tryStartMenuBgm, { once: true });
+document.addEventListener('keydown', tryStartMenuBgm, { once: true });
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -40,7 +88,6 @@ let isDead = false;
 let currentWave = 1;
 let waveAnnouncement = null;
 
-// Player upgrades (local)
 let myUpgrades = { damage: 1, fireRate: 500, shotCount: 1 };
 let cardTimerInterval = null;
 
@@ -183,7 +230,12 @@ socket.on('player_moved', ({ playerId, x, y }) => {
 });
 
 socket.on('hp_update', ({ playerId, hp }) => {
-  if (players[playerId]) players[playerId].hp = hp;
+  if (players[playerId]) {
+    if (playerId === window.myId && hp < players[playerId].hp) {
+      playSound('playerHurt');
+    }
+    players[playerId].hp = hp;
+  }
 });
 
 socket.on('enemies_update', ({ enemies: serverEnemies }) => {
@@ -203,12 +255,14 @@ socket.on('enemy_killed', ({ enemyId, killerId }) => {
   const idx = enemies.findIndex(e => e.id === enemyId);
   if (idx !== -1) enemies.splice(idx, 1);
   if (killerId === window.myId) myKills++;
+  playSound('enemyDeath');
 });
 
 socket.on('wave_start', ({ wave, enemyCount, isBossWave }) => {
   currentWave = wave;
   const text = isBossWave ? `⚠️ WAVE ${wave} — BOSS!` : `WAVE ${wave}`;
   waveAnnouncement = { text, timer: 180 };
+  playSound('waveStart');
 });
 
 socket.on('wave_complete', ({ wave }) => {
@@ -217,9 +271,9 @@ socket.on('wave_complete', ({ wave }) => {
 
 // ==================== CARD UPGRADE ====================
 const CARD_INFO = {
-  damage: { icon: '⚔️', title: 'Damage Up', desc: 'Damage peluru x1.8' },
-  fire_rate: { icon: '🔥', title: 'Fire Rate Up', desc: 'Tembak 2x lebih cepat' },
-  double_shot: { icon: '🎯', title: 'Multi Shot', desc: '+1 peluru per tembakan' }
+  damage: { icon: '⚔️', title: 'Damage Up', desc: 'Damage peluru x1.5' },
+  fire_rate: { icon: '🔥', title: 'Fire Rate Up', desc: 'Tembak 1.5x lebih cepat' },
+  double_shot: { icon: '🎯', title: 'Multi Shot', desc: '+1 peluru, damage -20%' }
 };
 
 socket.on('show_cards', ({ cards, timeLeft }) => {
@@ -243,27 +297,24 @@ socket.on('show_cards', ({ cards, timeLeft }) => {
 
   cardScreen.style.display = 'flex';
 
-  // Timer countdown
   let timeRemaining = timeLeft;
   timerEl.textContent = `${timeRemaining} detik`;
   cardTimerInterval = setInterval(() => {
     timeRemaining--;
     timerEl.textContent = `${timeRemaining} detik`;
-    if (timeRemaining <= 0) {
-      clearInterval(cardTimerInterval);
-    }
+    if (timeRemaining <= 0) clearInterval(cardTimerInterval);
   }, 1000);
 });
 
 function selectCard(cardType) {
   clearInterval(cardTimerInterval);
   cardScreen.style.display = 'none';
+  playSound('powerUp');
   socket.emit('card_selected', { roomCode: window.roomCode, cardType });
 }
 
 socket.on('upgrade_applied', ({ upgrades }) => {
   myUpgrades = upgrades;
-  console.log('Upgrades:', myUpgrades);
 });
 
 socket.on('hide_cards', () => {
@@ -364,6 +415,7 @@ function startGame() {
   if (gameStarted) return;
   gameStarted = true;
   gameStartTime = Date.now();
+  playBgm('mainBgm');
   ['screen-menu','screen-lobby','screen-join','screen-room'].forEach(s => {
     const el = document.getElementById(s);
     if (el) el.style.display = 'none';
@@ -426,6 +478,7 @@ function shoot() {
   const now = Date.now();
   if (now - lastShotTime < myUpgrades.fireRate) return;
   lastShotTime = now;
+  playSound('shoot');
 
   const me = players[window.myId];
   const target = getNearestEnemy(me.x, me.y);
@@ -434,8 +487,8 @@ function shoot() {
   const dx = target.x - me.x;
   const dy = target.y - me.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const baseVx = (dx / dist) * 10;
-  const baseVy = (dy / dist) * 10;
+  const baseVx = (dx / dist) * 15;
+  const baseVy = (dy / dist) * 15;
 
   const shotCount = myUpgrades.shotCount || 1;
   const spreadAngles = [];
@@ -457,8 +510,7 @@ function shoot() {
     const vy = baseVx * sin + baseVy * cos;
     const bullet = {
       x: me.x, y: me.y,
-      vx, vy,
-      life: 80,
+      vx, vy, life: 80,
       ownerId: window.myId,
       damage: myUpgrades.damage
     };
@@ -480,7 +532,7 @@ function getNearestEnemy(x, y) {
 }
 
 // ==================== GAME LOOP ====================
-const SPEED = 3;
+const SPEED = 5;
 
 function gameLoop() {
   update();
@@ -568,7 +620,7 @@ function draw() {
     const sx = e.x - camera.x;
     const sy = e.y - camera.y;
     const radius = e.isBoss ? 40 : 18;
-    const maxHp = e.maxHp || (e.isBoss ? 30 : 3);
+    const maxHp = e.maxHp || (e.isBoss ? 740 : 4);
 
     if (e.isBoss) {
       ctx.fillStyle = '#8e44ad';
@@ -577,7 +629,7 @@ function draw() {
       ctx.lineWidth = 3 / scale;
       ctx.strokeRect(sx - radius, sy - radius, radius * 2, radius * 2);
       ctx.fillStyle = 'white';
-      ctx.font = `bold ${14}px Arial`;
+      ctx.font = 'bold 14px Arial';
       ctx.textAlign = 'center';
       ctx.fillText('BOSS', sx, sy + 5);
     } else {
@@ -616,7 +668,7 @@ function draw() {
     ctx.fillRect(sx - 25, sy - 35, (p.hp / 100) * 50, 6);
 
     ctx.fillStyle = 'white';
-    ctx.font = `bold ${11}px Arial`;
+    ctx.font = 'bold 11px Arial';
     ctx.textAlign = 'center';
     ctx.fillText((p.name || 'Player') + (isMe ? ' ★' : ''), sx, sy - 40);
   }
@@ -625,7 +677,6 @@ function draw() {
 
   // HUD
   if (gameStarted) {
-    // Kills
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(10, 10, 160, 32);
     ctx.fillStyle = 'white';
@@ -633,7 +684,6 @@ function draw() {
     ctx.textAlign = 'left';
     ctx.fillText(`💀 Kills: ${myKills}`, 20, 31);
 
-    // Upgrades info
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(10, 50, 200, 32);
     ctx.fillStyle = '#f39c12';
@@ -641,7 +691,6 @@ function draw() {
     ctx.textAlign = 'left';
     ctx.fillText(`⚔️ ${myUpgrades.damage.toFixed(1)}x  🔥 ${(1000/myUpgrades.fireRate).toFixed(1)}/s  🎯 ${myUpgrades.shotCount}`, 16, 71);
 
-    // Wave
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(canvas.width/2 - 60, 10, 120, 32);
     ctx.fillStyle = currentWave === 10 ? '#f39c12' : 'white';
@@ -649,7 +698,6 @@ function draw() {
     ctx.textAlign = 'center';
     ctx.fillText(`WAVE ${currentWave}/10`, canvas.width/2, 31);
 
-    // Wave announcement
     if (waveAnnouncement) {
       const alpha = Math.min(1, waveAnnouncement.timer / 30);
       ctx.globalAlpha = alpha;

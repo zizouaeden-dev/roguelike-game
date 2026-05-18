@@ -28,8 +28,8 @@ function getRandomCards() {
 
 function getWaveConfig(wave) {
   const isBossWave = wave === MAX_WAVE;
-  const enemyCount = isBossWave ? 6 + wave * 4 : 6 + (wave - 1) * 4;
-  const enemyHp = Math.floor(4 + (wave - 1) / 2);
+  const enemyCount = Math.floor(isBossWave ? 15 * Math.pow(1.5, wave - 1) : 15 * Math.pow(1.5, wave - 1));
+  const enemyHp = 4 + (wave - 1) * 2;
   const enemySpeed = 3;
   return { enemyCount, enemyHp, enemySpeed, isBossWave };
 }
@@ -53,8 +53,8 @@ function spawnWaveEnemies(roomCode) {
       id: 'boss_' + Date.now(),
       x: target.x + Math.cos(angle) * 700,
       y: target.y + Math.sin(angle) * 700,
-      hp: enemyHp * 10,
-      maxHp: enemyHp * 10,
+      hp: 740,
+      maxHp: 740,
       speed: enemySpeed * 0.7,
       isBoss: true,
       radius: 40
@@ -139,13 +139,23 @@ function applyUpgrade(roomCode, playerId, cardType) {
 
   if (!p.upgrades) p.upgrades = { damage: 1, fireRate: 500, shotCount: 1 };
 
-  if (cardType === 'damage') {
-    p.upgrades.damage = parseFloat((p.upgrades.damage * 1.8).toFixed(2));
-  } else if (cardType === 'fire_rate') {
-    p.upgrades.fireRate = Math.max(100, Math.floor(p.upgrades.fireRate / 2));
-  } else if (cardType === 'double_shot') {
-    p.upgrades.shotCount = (p.upgrades.shotCount || 1) + 1;
+  if (!p.upgrades.damageCount) p.upgrades.damageCount = 0;
+if (!p.upgrades.fireRateCount) p.upgrades.fireRateCount = 0;
+
+if (cardType === 'damage') {
+  if (p.upgrades.damageCount < 5) {
+    p.upgrades.damage = parseFloat((p.upgrades.damage * 1.5).toFixed(2));
+    p.upgrades.damageCount++;
   }
+} else if (cardType === 'fire_rate') {
+  if (p.upgrades.fireRateCount < 5) {
+    p.upgrades.fireRate = Math.max(167, Math.floor(p.upgrades.fireRate / 1.5));
+    p.upgrades.fireRateCount++;
+  }
+} else if (cardType === 'double_shot') {
+  p.upgrades.shotCount = (p.upgrades.shotCount || 1) + 1;
+  p.upgrades.damage = parseFloat((p.upgrades.damage * 0.8).toFixed(2));
+}
 
   // Kirim upgrade ke player yang bersangkutan
   io.to(playerId).emit('upgrade_applied', { upgrades: p.upgrades });
