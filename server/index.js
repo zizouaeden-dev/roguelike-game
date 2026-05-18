@@ -30,7 +30,7 @@ function getWaveConfig(wave) {
   const isBossWave = wave === MAX_WAVE;
   const enemyCount = Math.floor(isBossWave ? 15 * Math.pow(1.5, wave - 1) : 15 * Math.pow(1.5, wave - 1));
   const enemyHp = 4 + (wave - 1) * 2;
-  const enemySpeed = 3;
+  const enemySpeed = 5;
   return { enemyCount, enemyHp, enemySpeed, isBossWave };
 }
 

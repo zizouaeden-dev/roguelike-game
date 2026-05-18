@@ -1,4 +1,4 @@
-const SERVER_URL = 'http://localhost:3001';
+const SERVER_URL = 'https://roguelike-game-production.up.railway.app';
 
 // Firebase setup
 const firebaseConfig = {
