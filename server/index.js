@@ -28,9 +28,9 @@ function getRandomCards() {
 
 function getWaveConfig(wave) {
   const isBossWave = wave === MAX_WAVE;
-  const enemyCount = Math.floor(isBossWave ? 15 * Math.pow(1.5, wave - 1) : 15 * Math.pow(1.5, wave - 1));
-  const enemyHp = 4 + (wave - 1) * 2;
-  const enemySpeed = 5;
+  const enemyCount = Math.floor(isBossWave ? 10 * Math.pow(1.5, wave - 1) : 10 * Math.pow(1.5, wave - 1));
+  const enemyHp = 3 + (wave - 1) * 2;
+  const enemySpeed = 3;
   return { enemyCount, enemyHp, enemySpeed, isBossWave };
 }
 
@@ -53,8 +53,8 @@ function spawnWaveEnemies(roomCode) {
       id: 'boss_' + Date.now(),
       x: target.x + Math.cos(angle) * 700,
       y: target.y + Math.sin(angle) * 700,
-      hp: 740,
-      maxHp: 740,
+      hp: 500,
+      maxHp: 500,
       speed: enemySpeed * 0.7,
       isBoss: true,
       radius: 40
@@ -144,17 +144,17 @@ if (!p.upgrades.fireRateCount) p.upgrades.fireRateCount = 0;
 
 if (cardType === 'damage') {
   if (p.upgrades.damageCount < 5) {
-    p.upgrades.damage = parseFloat((p.upgrades.damage * 1.5).toFixed(2));
+    p.upgrades.damage = parseFloat((p.upgrades.damage * 1.8).toFixed(2));
     p.upgrades.damageCount++;
   }
 } else if (cardType === 'fire_rate') {
   if (p.upgrades.fireRateCount < 5) {
-    p.upgrades.fireRate = Math.max(167, Math.floor(p.upgrades.fireRate / 1.5));
+    p.upgrades.fireRate = Math.max(200, Math.floor(p.upgrades.fireRate / 1.8));
     p.upgrades.fireRateCount++;
   }
 } else if (cardType === 'double_shot') {
   p.upgrades.shotCount = (p.upgrades.shotCount || 1) + 1;
-  p.upgrades.damage = parseFloat((p.upgrades.damage * 0.8).toFixed(2));
+  p.upgrades.damage = parseFloat((p.upgrades.damage * 0.95).toFixed(2));
 }
 
   // Kirim upgrade ke player yang bersangkutan
@@ -244,7 +244,7 @@ io.on('connection', (socket) => {
     rooms[roomCode].players[socket.id] = {
       id: socket.id, name: name || 'Player', color,
       x: 400, y: 300, hp: 100, kills: 0, dead: false,
-      upgrades: { damage: 1, fireRate: 500, shotCount: 1 }
+      upgrades: { damage: 1, fireRate: 333, shotCount: 1 }
     };
     const availableColors = AVAILABLE_COLORS.filter(c => !rooms[roomCode].usedColors.includes(c));
     socket.emit('room_created', { roomCode, playerId: socket.id, players: rooms[roomCode].players, availableColors });
